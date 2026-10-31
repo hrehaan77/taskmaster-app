@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskMaster - Organizational Dashboard</title>
+  <!-- Tailwind CSS CDN for instant styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen text-gray-800">
+
+  <!-- Header Banner -->
+  <header class="bg-indigo-700 text-white shadow-lg py-5 px-8 flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold tracking-wide">⚡ TaskMaster Dashboard</h1>
+      <p class="text-indigo-200 text-sm">Smart Skill Routing & Real-time Gamified Leaderboard</p>
+    </div>
+    <div id="connectionStatus" class="px-3 py-1 text-xs rounded-full bg-yellow-500 font-semibold">
+      Connecting to API...
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- LEFT COLUMN: Manager Task Creator (1 col) -->
+    <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+      <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <span>📌</span> Assign New Task
+      </h2>
+      <form id="assignTaskForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Task Title</label>
+          <input type="text" id="taskTitle" required placeholder="e.g. Optimize Database Indexes"
+            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Required Skill</label>
+          <select id="requiredSkill" required
+            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+            <option value="Python">Python</option>
+            <option value="Design">Design</option>
+            <option value="PostgreSQL">PostgreSQL</option>
+            <option value="FastAPI">FastAPI</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Reward Points</label>
+          <input type="number" id="taskPoints" value="15" min="5" max="100" required
+            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Description</label>
+          <textarea id="taskDesc" rows="2" placeholder="Task details..."
+            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"></textarea>
+        </div>
+
+        <button type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg transition shadow-md text-sm">
+          Auto-Assign Task ✨
+        </button>
+      </form>
+      <div id="assignAlert" class="mt-4 text-xs font-medium text-center hidden p-2 rounded"></div>
+    </section>
+
+    <!-- MIDDLE COLUMN: Active Tasks (1 col) -->
+    <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200 lg:col-span-1">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+          <span>📋</span> Active Office Tasks
+        </h2>
+        <button onclick="loadDashboardData()" class="text-xs text-indigo-600 hover:underline font-semibold">
+          🔄 Refresh
+        </button>
+      </div>
+      <div id="taskList" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+        <p class="text-gray-400 text-sm">Loading tasks...</p>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: Gamified Leaderboard (1 col) -->
+    <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+      <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <span>🏆</span> Real-Time Leaderboard
+      </h2>
+      <div id="leaderboardList" class="space-y-2">
+        <p class="text-gray-400 text-sm">Loading rankings...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const API_URL = "http://127.0.0.1:8000";
+
+    // Initialize Dashboard
+    document.addEventListener("DOMContentLoaded", () => {
+      loadDashboardData();
+      document.getElementById("assignTaskForm").addEventListener("submit", handleAssignTask);
+    });
+
+    async function loadDashboardData() {
+      await Promise.all([fetchTasks(), fetchLeaderboard()]);
+    }
+
+    // Fetch Tasks from API
+    async function fetchTasks() {
+      try {
+        const res = await fetch(`${API_URL}/tasks`);
+        const tasks = await res.json();
+        const container = document.getElementById("taskList");
+        document.getElementById("connectionStatus").innerText = "● API Online";
+        document.getElementById("connectionStatus").className = "px-3 py-1 text-xs rounded-full bg-green-500 text-white font-semibold";
+
+        if (tasks.length === 0) {
+          container.innerHTML = `<p class="text-gray-400 text-sm">No tasks created yet.</p>`;
+          return;
+        }
+
+        container.innerHTML = tasks.map(t => `
+          <div class="p-3.5 border rounded-lg ${t.status === 'Completed' ? 'bg-gray-50 border-gray-200' : 'bg-indigo-50/50 border-indigo-200'} flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-gray-800 text-sm">${t.title}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">${t.required_skill}</span>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Assigned ID: <span class="font-medium text-gray-700">${t.assigned_to_id || 'Unassigned'}</span></p>
+              <p class="text-xs text-indigo-600 font-semibold mt-0.5">+${t.points} Points</p>
+            </div>
+            ${t.status !== 'Completed' ? `
+              <button onclick="completeTask(${t.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded transition">
+                Complete
+              </button>
+            ` : `<span class="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">✓ Done</span>`}
+          </div>
+        `).join("");
+      } catch (err) {
+        document.getElementById("connectionStatus").innerText = "● API Offline";
+        document.getElementById("connectionStatus").className = "px-3 py-1 text-xs rounded-full bg-red-500 text-white font-semibold";
+      }
+    }
+
+    // Fetch Leaderboard
+    async function fetchLeaderboard() {
+      try {
+        const res = await fetch(`${API_URL}/leaderboard`);
+        const employees = await res.json();
+        const container = document.getElementById("leaderboardList");
+
+        const medals = ["🥇", "🥈", "🥉"];
+        container.innerHTML = employees.map((emp, idx) => `
+          <div class="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+            <div class="flex items-center gap-3">
+              <span class="text-base">${medals[idx] || '#' + (idx + 1)}</span>
+              <div>
+                <p class="text-sm font-bold text-gray-800">${emp.name}</p>
+                <p class="text-[11px] text-gray-400">${(emp.skills || []).join(', ')}</p>
+              </div>
+            </div>
+            <span class="font-extrabold text-indigo-600 text-sm">${emp.points || 0} pts</span>
+          </div>
+        `).join("");
+      } catch (err) {
+        console.error("Leaderboard fetch error:", err);
+      }
+    }
+
+    // Assign Task Action
+    async function handleAssignTask(e) {
+      e.preventDefault();
+      const payload = {
+        title: document.getElementById("taskTitle").value,
+        required_skill: document.getElementById("requiredSkill").value,
+        points: parseInt(document.getElementById("taskPoints").value),
+        description: document.getElementById("taskDesc").value
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/tasks/assign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        const alertBox = document.getElementById("assignAlert");
+        
+        if (res.ok) {
+          alertBox.className = "mt-4 text-xs font-medium text-center p-2 rounded bg-green-100 text-green-700 block";
+          alertBox.innerText = `Assigned to ${data.assigned_to}!`;
+          document.getElementById("assignTaskForm").reset();
+          loadDashboardData();
+        } else {
+          alertBox.className = "mt-4 text-xs font-medium text-center p-2 rounded bg-red-100 text-red-700 block";
+          alertBox.innerText = data.detail || "Assignment failed";
+        }
+      } catch (err) {
+        alert("Server error when assigning task.");
+      }
+    }
+
+    // Complete Task Action
+    async function completeTask(taskId) {
+      try {
+        await fetch(`${API_URL}/tasks/${taskId}/complete`, { method: "PUT" });
+        loadDashboardData();
+      } catch (err) {
+        alert("Error completing task.");
+      }
+    }
+  </script>
+</body>
+</html>
