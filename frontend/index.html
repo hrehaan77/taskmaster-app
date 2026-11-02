@@ -3,213 +3,348 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskMaster - Organizational Dashboard</title>
-  <!-- Tailwind CSS CDN for instant styling -->
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 font-sans min-h-screen text-gray-800">
+  <title>TaskMaster — Organizational Dashboard</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --warning: #d97706;
+    }
 
-  <!-- Header Banner -->
-  <header class="bg-indigo-700 text-white shadow-lg py-5 px-8 flex justify-between items-center">
-    <div>
-      <h1 class="text-2xl font-bold tracking-wide">⚡ TaskMaster Dashboard</h1>
-      <p class="text-indigo-200 text-sm">Smart Skill Routing & Real-time Gamified Leaderboard</p>
-    </div>
-    <div id="connectionStatus" class="px-3 py-1 text-xs rounded-full bg-yellow-500 font-semibold">
-      Connecting to API...
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    h1 { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+    
+    .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: #f1f5f9; }
+    .status-online { color: var(--success); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; }
+
+    .role-switcher { display: flex; gap: 12px; background: #e2e8f0; padding: 4px; border-radius: 8px; margin-bottom: 24px; width: fit-content; }
+    .role-btn { padding: 8px 16px; border: none; background: transparent; font-weight: 600; cursor: pointer; border-radius: 6px; transition: 0.2s; }
+    .role-btn.active { background: var(--card); color: var(--primary); shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .card h2 { font-size: 1.1rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+
+    form { display: flex; flex-direction: column; gap: 12px; }
+    input, select, button { padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.95rem; }
+    button { background: var(--primary); color: white; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    button:hover { opacity: 0.9; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    th { color: #64748b; font-weight: 600; }
+
+    .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .badge-todo { background: #fef3c7; color: #92400e; }
+    .badge-progress { background: #dbeafe; color: #1e40af; }
+    .badge-done { background: #dcfce7; color: #166534; }
+
+    .task-card { border: 1px solid var(--border); padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .actions { display: flex; gap: 8px; }
+    .btn-sm { padding: 6px 10px; font-size: 0.8rem; }
+    .btn-secondary { background: #64748b; }
+    .btn-success { background: var(--success); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>TaskMaster Dashboard</h1>
+    <div class="status-badge status-online">
+      <span class="status-dot"></span> <span id="api-status">API Online</span>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Role Switcher -->
+  <div class="role-switcher">
+    <button class="role-btn active" id="btn-manager" onclick="switchView('manager')">Manager View</button>
+    <button class="role-btn" id="btn-employee" onclick="switchView('employee')">Employee View</button>
+  </div>
 
-    <!-- LEFT COLUMN: Manager Task Creator (1 col) -->
-    <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-      <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-        <span>📌</span> Assign New Task
-      </h2>
-      <form id="assignTaskForm" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Task Title</label>
-          <input type="text" id="taskTitle" required placeholder="e.g. Optimize Database Indexes"
-            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Required Skill</label>
-          <select id="requiredSkill" required
-            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-            <option value="Python">Python</option>
-            <option value="Design">Design</option>
-            <option value="PostgreSQL">PostgreSQL</option>
-            <option value="FastAPI">FastAPI</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Reward Points</label>
-          <input type="number" id="taskPoints" value="15" min="5" max="100" required
-            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Description</label>
-          <textarea id="taskDesc" rows="2" placeholder="Task details..."
-            class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"></textarea>
-        </div>
-
-        <button type="submit"
-          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg transition shadow-md text-sm">
-          Auto-Assign Task ✨
-        </button>
-      </form>
-      <div id="assignAlert" class="mt-4 text-xs font-medium text-center hidden p-2 rounded"></div>
-    </section>
-
-    <!-- MIDDLE COLUMN: Active Tasks (1 col) -->
-    <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200 lg:col-span-1">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-          <span>📋</span> Active Office Tasks
-        </h2>
-        <button onclick="loadDashboardData()" class="text-xs text-indigo-600 hover:underline font-semibold">
-          🔄 Refresh
-        </button>
+  <!-- MANAGER VIEW -->
+  <div id="view-manager">
+    <div class="grid">
+      <!-- Create & Auto-Assign Task -->
+      <div class="card">
+        <h2>Auto-Assign Task</h2>
+        <form id="form-task" onsubmit="handleCreateTask(event)">
+          <input type="text" id="task-title" placeholder="Task Title (e.g., Optimize Queries)" required>
+          <input type="text" id="task-skill" placeholder="Required Skill (e.g., PostgreSQL)" required>
+          <input type="number" id="task-points" placeholder="Points Value" value="10" min="1" required>
+          <button type="submit">Auto-Route Task</button>
+        </form>
       </div>
-      <div id="taskList" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-        <p class="text-gray-400 text-sm">Loading tasks...</p>
-      </div>
-    </section>
 
-    <!-- RIGHT COLUMN: Gamified Leaderboard (1 col) -->
-    <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-      <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-        <span>🏆</span> Real-Time Leaderboard
-      </h2>
-      <div id="leaderboardList" class="space-y-2">
-        <p class="text-gray-400 text-sm">Loading rankings...</p>
+      <!-- Add New Employee -->
+      <div class="card">
+        <h2>Add Employee</h2>
+        <form id="form-employee" onsubmit="handleCreateEmployee(event)">
+          <input type="text" id="emp-name" placeholder="Full Name" required>
+          <input type="text" id="emp-skills" placeholder="Skills (comma separated: Python, PostgreSQL)" required>
+          <button type="submit">Register Employee</button>
+        </form>
       </div>
-    </section>
+    </div>
 
-  </main>
+    <!-- Global Task Status -->
+    <div class="card">
+      <h2>All Active Tasks</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Required Skill</th>
+            <th>Assigned To</th>
+            <th>Points</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="manager-task-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE VIEW -->
+  <div id="view-employee" style="display: none;">
+    <div class="card">
+      <h2>Select Active Employee</h2>
+      <select id="employee-select" onchange="loadEmployeeTasks()">
+        <option value="">-- Choose Profile --</option>
+      </select>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>My Assigned Tasks</h2>
+        <div id="employee-task-list">Select an employee profile to view tasks.</div>
+      </div>
+
+      <div class="card">
+        <h2>My Score & Status</h2>
+        <div id="employee-stats">Select a profile to view rank.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GLOBAL LEADERBOARD -->
+  <div class="card">
+    <h2>Team Leaderboard</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Employee</th>
+          <th>Skills</th>
+          <th>Active Tasks</th>
+          <th>Points</th>
+        </tr>
+      </thead>
+      <tbody id="leaderboard-list"></tbody>
+    </table>
+  </div>
 
   <script>
-    const API_URL = "https://taskmaster-app-e0t9.onrender.com";
+    // UPDATE THIS URL to your live Render endpoint:
+    const API_BASE_URL = "https://your-render-app-name.onrender.com";
 
-    // Initialize Dashboard
-    document.addEventListener("DOMContentLoaded", () => {
-      loadDashboardData();
-      document.getElementById("assignTaskForm").addEventListener("submit", handleAssignTask);
-    });
+    let employees = [];
+    let currentRole = "manager";
 
-    async function loadDashboardData() {
-      await Promise.all([fetchTasks(), fetchLeaderboard()]);
+    async function init() {
+      await checkHealth();
+      await fetchLeaderboard();
+      await fetchAllTasks();
     }
 
-    // Fetch Tasks from API
-    async function fetchTasks() {
+    async function checkHealth() {
       try {
-        const res = await fetch(`${API_URL}/tasks`);
-        const tasks = await res.json();
-        const container = document.getElementById("taskList");
-        document.getElementById("connectionStatus").innerText = "● API Online";
-        document.getElementById("connectionStatus").className = "px-3 py-1 text-xs rounded-full bg-green-500 text-white font-semibold";
+        const res = await fetch(`${API_BASE_URL}/`);
+        if (res.ok) {
+          document.getElementById('api-status').innerText = 'API Online';
+        }
+      } catch (err) {
+        document.getElementById('api-status').innerText = 'API Offline';
+      }
+    }
 
+    function switchView(role) {
+      currentRole = role;
+      document.getElementById('btn-manager').classList.toggle('active', role === 'manager');
+      document.getElementById('btn-employee').classList.toggle('active', role === 'employee');
+      document.getElementById('view-manager').style.display = role === 'manager' ? 'block' : 'none';
+      document.getElementById('view-employee').style.display = role === 'employee' ? 'block' : 'none';
+      if (role === 'employee') populateEmployeeDropdown();
+    }
+
+    async function fetchLeaderboard() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/employees`);
+        employees = await res.json();
+        
+        const tbody = document.getElementById('leaderboard-list');
+        tbody.innerHTML = employees.map((e, index) => `
+          <tr>
+            <td><strong>#${index + 1}</strong></td>
+            <td>${e.name}</td>
+            <td>${(e.skills || []).join(', ')}</td>
+            <td>${e.active_tasks_count}</td>
+            <td><strong>${e.points} pts</strong></td>
+          </tr>
+        `).join('');
+
+        if (currentRole === 'employee') populateEmployeeDropdown();
+      } catch (err) {
+        console.error("Error fetching leaderboard:", err);
+      }
+    }
+
+    async function fetchAllTasks() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks`);
+        const tasks = await res.json();
+        
+        const tbody = document.getElementById('manager-task-list');
+        tbody.innerHTML = tasks.map(t => `
+          <tr>
+            <td>${t.title}</td>
+            <td>${t.required_skill}</td>
+            <td>${t.assigned_to_name}</td>
+            <td>${t.points}</td>
+            <td><span class="badge ${getBadgeClass(t.status)}">${t.status}</span></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error("Error fetching tasks:", err);
+      }
+    }
+
+    function getBadgeClass(status) {
+      if (status === 'Completed') return 'badge-done';
+      if (status === 'IN_PROGRESS') return 'badge-progress';
+      return 'badge-todo';
+    }
+
+    async function handleCreateTask(e) {
+      e.preventDefault();
+      const title = document.getElementById('task-title').value;
+      const required_skill = document.getElementById('task-skill').value;
+      const points = parseInt(document.getElementById('task-points').value);
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/auto-assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, required_skill, points })
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          alert(error.detail || "Error assigning task");
+          return;
+        }
+
+        document.getElementById('form-task').reset();
+        await fetchAllTasks();
+        await fetchLeaderboard();
+        alert("Task auto-routed successfully!");
+      } catch (err) {
+        alert("Failed to connect to API.");
+      }
+    }
+
+    async function handleCreateEmployee(e) {
+      e.preventDefault();
+      const name = document.getElementById('emp-name').value;
+      const skills = document.getElementById('emp-skills').value.split(',').map(s => s.trim());
+
+      try {
+        await fetch(`${API_BASE_URL}/employees`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, skills })
+        });
+
+        document.getElementById('form-employee').reset();
+        await fetchLeaderboard();
+        alert("Employee registered successfully!");
+      } catch (err) {
+        alert("Failed to register employee.");
+      }
+    }
+
+    function populateEmployeeDropdown() {
+      const select = document.getElementById('employee-select');
+      const selectedVal = select.value;
+      select.innerHTML = '<option value="">-- Choose Profile --</option>' +
+        employees.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+      if (selectedVal) select.value = selectedVal;
+    }
+
+    async function loadEmployeeTasks() {
+      const empId = document.getElementById('employee-select').value;
+      if (!empId) return;
+
+      const emp = employees.find(e => e.id == empId);
+      document.getElementById('employee-stats').innerHTML = `
+        <p><strong>Name:</strong> ${emp.name}</p>
+        <p><strong>Leaderboard Rank:</strong> #${employees.findIndex(e => e.id == empId) + 1}</p>
+        <p><strong>Total Points:</strong> ${emp.points} pts</p>
+      `;
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks?assigned_to_id=${empId}`);
+        const tasks = await res.json();
+
+        const container = document.getElementById('employee-task-list');
         if (tasks.length === 0) {
-          container.innerHTML = `<p class="text-gray-400 text-sm">No tasks created yet.</p>`;
+          container.innerHTML = "<p>No active tasks assigned.</p>";
           return;
         }
 
         container.innerHTML = tasks.map(t => `
-          <div class="p-3.5 border rounded-lg ${t.status === 'Completed' ? 'bg-gray-50 border-gray-200' : 'bg-indigo-50/50 border-indigo-200'} flex justify-between items-start">
+          <div class="task-card">
             <div>
-              <div class="flex items-center gap-2">
-                <span class="font-semibold text-gray-800 text-sm">${t.title}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">${t.required_skill}</span>
-              </div>
-              <p class="text-xs text-gray-500 mt-1">Assigned ID: <span class="font-medium text-gray-700">${t.assigned_to_id || 'Unassigned'}</span></p>
-              <p class="text-xs text-indigo-600 font-semibold mt-0.5">+${t.points} Points</p>
+              <strong>${t.title}</strong><br>
+              <small>Skill: ${t.required_skill} | Points: ${t.points}</small><br>
+              <span class="badge ${getBadgeClass(t.status)}">${t.status}</span>
             </div>
-            ${t.status !== 'Completed' ? `
-              <button onclick="completeTask(${t.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded transition">
-                Complete
-              </button>
-            ` : `<span class="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">✓ Done</span>`}
+            <div class="actions">
+              ${t.status === 'TODO' ? `<button class="btn-sm btn-secondary" onclick="updateStatus(${t.id}, 'IN_PROGRESS')">Start</button>` : ''}
+              ${t.status !== 'Completed' ? `<button class="btn-sm btn-success" onclick="updateStatus(${t.id}, 'Completed')">Complete</button>` : '<span>Completed</span>'}
+            </div>
           </div>
-        `).join("");
+        `).join('');
       } catch (err) {
-        document.getElementById("connectionStatus").innerText = "● API Offline";
-        document.getElementById("connectionStatus").className = "px-3 py-1 text-xs rounded-full bg-red-500 text-white font-semibold";
+        console.error(err);
       }
     }
 
-    // Fetch Leaderboard
-    async function fetchLeaderboard() {
+    async function updateStatus(taskId, status) {
       try {
-        const res = await fetch(`${API_URL}/leaderboard`);
-        const employees = await res.json();
-        const container = document.getElementById("leaderboardList");
-
-        const medals = ["🥇", "🥈", "🥉"];
-        container.innerHTML = employees.map((emp, idx) => `
-          <div class="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
-            <div class="flex items-center gap-3">
-              <span class="text-base">${medals[idx] || '#' + (idx + 1)}</span>
-              <div>
-                <p class="text-sm font-bold text-gray-800">${emp.name}</p>
-                <p class="text-[11px] text-gray-400">${(emp.skills || []).join(', ')}</p>
-              </div>
-            </div>
-            <span class="font-extrabold text-indigo-600 text-sm">${emp.points || 0} pts</span>
-          </div>
-        `).join("");
-      } catch (err) {
-        console.error("Leaderboard fetch error:", err);
-      }
-    }
-
-    // Assign Task Action
-    async function handleAssignTask(e) {
-      e.preventDefault();
-      const payload = {
-        title: document.getElementById("taskTitle").value,
-        required_skill: document.getElementById("requiredSkill").value,
-        points: parseInt(document.getElementById("taskPoints").value),
-        description: document.getElementById("taskDesc").value
-      };
-
-      try {
-        const res = await fetch(`${API_URL}/tasks/assign`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+        await fetch(`${API_BASE_URL}/tasks/${taskId}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
         });
-        const data = await res.json();
-        const alertBox = document.getElementById("assignAlert");
-        
-        if (res.ok) {
-          alertBox.className = "mt-4 text-xs font-medium text-center p-2 rounded bg-green-100 text-green-700 block";
-          alertBox.innerText = `Assigned to ${data.assigned_to}!`;
-          document.getElementById("assignTaskForm").reset();
-          loadDashboardData();
-        } else {
-          alertBox.className = "mt-4 text-xs font-medium text-center p-2 rounded bg-red-100 text-red-700 block";
-          alertBox.innerText = data.detail || "Assignment failed";
-        }
+        await fetchAllTasks();
+        await fetchLeaderboard();
+        loadEmployeeTasks();
       } catch (err) {
-        alert("Server error when assigning task.");
+        alert("Failed to update task status.");
       }
     }
 
-    // Complete Task Action
-    async function completeTask(taskId) {
-      try {
-        await fetch(`${API_URL}/tasks/${taskId}/complete`, { method: "PUT" });
-        loadDashboardData();
-      } catch (err) {
-        alert("Error completing task.");
-      }
-    }
+    window.onload = init;
   </script>
 </body>
 </html>
