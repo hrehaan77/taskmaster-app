@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, ForeignKey, JSON, create_engine
 from sqlalchemy.orm import Session, relationship, declarative_base, sessionmaker
 
-# Database Setup (Supports SQLite & Cloud PostgreSQL)
+# Database Setup
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./taskmaster.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -25,7 +25,7 @@ class User(Base):
     name = Column(String, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    role = Column(String, default="employee")  # "manager" or "employee"
+    role = Column(String, default="employee")
     skills = Column(JSON, default=[])
     points = Column(Integer, default=0)
 
@@ -39,16 +39,18 @@ class Task(Base):
     title = Column(String, nullable=False)
     required_skill = Column(String, nullable=False)
     points = Column(Integer, default=10)
-    status = Column(String, default="TODO")  # TODO, IN_PROGRESS, Completed
+    status = Column(String, default="TODO")
     deadline = Column(String, nullable=True, default="ASAP")
     assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     assigned_to = relationship("User", back_populates="tasks")
 
 
+# Rebuild tables to match updated schema
+Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
-# Seed default Manager account if not present
+# Seed Default Manager
 def seed_initial_manager():
     db = SessionLocal()
     try:
@@ -59,7 +61,7 @@ def seed_initial_manager():
                 username="admin",
                 password="password123",
                 role="manager",
-                skills=["Management", "Architecture"],
+                skills=["Management"],
                 points=100
             )
             db.add(admin_user)
@@ -71,7 +73,6 @@ seed_initial_manager()
 
 app = FastAPI(title="TaskMaster Production API")
 
-# Enable CORS for external employee devices
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -87,7 +88,6 @@ def get_db():
     finally:
         db.close()
 
-# Pydantic Schemas
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -108,14 +108,12 @@ class StatusUpdate(BaseModel):
     status: str
 
 
-# API Endpoints
 @app.get("/")
 def root():
     return {"status": "online", "message": "TaskMaster Cloud API is live!"}
 
 @app.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate user credentials and return user profile + role."""
     user = db.query(User).filter(User.username == req.username).first()
     if not user or user.password != req.password:
         raise HTTPException(status_code=401, detail="Invalid username or password")
@@ -130,7 +128,6 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 @app.get("/employees")
 def get_employees(db: Session = Depends(get_db)):
-    """Fetch all employee profiles with leaderboard metrics."""
     employees = db.query(User).filter(User.role == "employee").order_by(User.points.desc()).all()
     return [
         {
@@ -146,7 +143,6 @@ def get_employees(db: Session = Depends(get_db)):
 
 @app.post("/employees")
 def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
-    """Manager creates a new employee profile with credentials."""
     existing = db.query(User).filter(User.username == emp.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -156,7 +152,7 @@ def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
         username=emp.username,
         password=emp.password,
         role="employee",
-        skills=emp.skills,
+        skills=[s.strip() for s in emp.skills],
         points=0
     )
     db.add(new_emp)
@@ -172,7 +168,6 @@ def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
 
 @app.get("/tasks")
 def get_tasks(assigned_to_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
-    """Fetch tasks (optionally filtered by assigned employee)."""
     query = db.query(Task)
     if assigned_to_id is not None:
         query = query.filter(Task.assigned_to_id == assigned_to_id)
@@ -193,7 +188,6 @@ def get_tasks(assigned_to_id: Optional[int] = Query(None), db: Session = Depends
 
 @app.get("/tasks/{task_id}")
 def get_task_detail(task_id: int, db: Session = Depends(get_db)):
-    """Fetch detailed task metrics for modal view."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -211,9 +205,14 @@ def get_task_detail(task_id: int, db: Session = Depends(get_db)):
 
 @app.post("/tasks/auto-assign")
 def auto_assign_task(task: TaskCreate, db: Session = Depends(get_db)):
-    """Auto-route task to qualified employee with lowest current active workload."""
     all_employees = db.query(User).filter(User.role == "employee").all()
-    qualified = [e for e in all_employees if task.required_skill in (e.skills or [])]
+    
+    # Flexible, case-insensitive skill matching
+    req_skill = task.required_skill.strip().lower()
+    qualified = [
+        e for e in all_employees 
+        if any(s.strip().lower() == req_skill for s in (e.skills or []))
+    ]
 
     if not qualified:
         raise HTTPException(
@@ -250,7 +249,6 @@ def auto_assign_task(task: TaskCreate, db: Session = Depends(get_db)):
 
 @app.post("/tasks/{task_id}/status")
 def update_task_status(task_id: int, status_update: StatusUpdate, db: Session = Depends(get_db)):
-    """Update task status and award points upon completion."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
